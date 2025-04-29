@@ -1,12 +1,13 @@
-# Terminal Claude Assistant
+# ProdTerm
 
-A terminal-based assistant powered by Claude AI for handling daily tasks directly from the command line.
+A terminal-based productivity assistant powered by Claude AI for handling daily tasks directly from the command line.
 
 ## Features
 
 - Chat with Claude AI directly from your terminal
 - Summarize webpages
 - Get email summaries from your Gmail account
+- Get summaries of Slack channel conversations
 - Pretty terminal UI with command history and auto-completion
 - Model Context Protocol integration for extensibility
 
@@ -17,6 +18,7 @@ A terminal-based assistant powered by Claude AI for handling daily tasks directl
 - Go 1.19 or newer
 - Anthropic API key
 - For Gmail integration: Google Cloud project with Gmail API enabled
+- For Slack integration: Slack API token with appropriate permissions
 
 ### Building from source
 
@@ -41,19 +43,23 @@ go build -o terminal-claude
 
 2. For Gmail integration, follow the setup instructions in [docs/gmail_setup.md](docs/gmail_setup.md)
 
-3. Run the application:
+3. For Slack integration, follow the setup instructions in [docs/slack_setup.md](docs/slack_setup.md)
+
+4. Run the application:
    ```bash
-   ./terminal-claude
+   ./prodterm
    ```
 
-4. Enter commands at the prompt:
+5. Enter commands at the prompt:
    ```
    > what's on this webpage? bbc.co.uk
    > summarise my unread e-mails
+   > list slack channels
+   > summarise slack channel #general
    > tell me about golang
    ```
 
-5. Press Ctrl+C or type `exit` to quit
+6. Press Ctrl+C or type `exit` to quit
 
 ## Configuration
 
@@ -64,11 +70,17 @@ export CLAUDE_MODEL="claude-3-opus-20240229"
 
 The default model is `claude-3-sonnet-20240229` if not specified.
 
+Available models:
+- claude-3-opus-20240229
+- claude-3-sonnet-20240229
+- claude-3-haiku-20240307
+
 ## Model Context Protocol Providers
 
-Terminal Claude uses the Model Context Protocol to integrate with various services:
+ProdTerm uses the Model Context Protocol to integrate with various services:
 
 - **Gmail**: Access and summarize your emails
+- **Slack**: Access and summarize your Slack channel discussions
 - More providers coming soon!
 
 ## Development

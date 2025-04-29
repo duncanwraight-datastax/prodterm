@@ -29,9 +29,8 @@ func (h *Handler) ProcessCommand(command string) (string, error) {
 		return "Exiting...", nil
 	}
 	
-	// Parse the command to determine what to do
-	if strings.HasPrefix(command, "summarise my unread e-mails") || 
-	   strings.HasPrefix(command, "summarize my unread e-mails") {
+	// Check if it's an email command
+	if strings.Contains(command, "unread emails") || strings.Contains(command, "unread e-mails") {
 		return h.HandleEmailSummary()
 	} else if strings.HasPrefix(command, "what's on this webpage?") || 
 	          strings.HasPrefix(command, "what's on this webpage") {
@@ -51,6 +50,38 @@ func (h *Handler) ProcessCommand(command string) (string, error) {
 			return h.HandleWebpageSummary(url)
 		}
 		return "Please provide a URL to summarize.", nil
+	} else if strings.HasPrefix(command, "list slack channels") || strings.HasPrefix(command, "show slack channels") {
+		// List available Slack channels
+		return h.HandleSlackChannels()
+	} else if strings.Contains(command, "summarize slack channel") || strings.Contains(command, "summarise slack channel") {
+		// Extract channel name or ID
+		var channel string
+		patterns := []string{"channel", "in", "#"}
+		for _, pattern := range patterns {
+			parts := strings.SplitN(command, pattern, 2)
+			if len(parts) > 1 {
+				channel = strings.TrimSpace(parts[1])
+				if channel != "" {
+					break
+				}
+			}
+		}
+		
+		if channel == "" {
+			// Try to find the channel name at the end
+			words := strings.Fields(command)
+			if len(words) > 0 {
+				candidate := words[len(words)-1]
+				if strings.HasPrefix(candidate, "#") || strings.HasPrefix(candidate, "C") {
+					channel = candidate
+				}
+			}
+		}
+		
+		if channel != "" {
+			return h.HandleSlackSummary(channel)
+		}
+		return "Please specify a Slack channel name or ID to summarize.", nil
 	} else {
 		// For any other command, pass it directly to Claude
 		response, err := h.claudeClient.Ask(command)
@@ -59,24 +90,6 @@ func (h *Handler) ProcessCommand(command string) (string, error) {
 		}
 		return response, nil
 	}
-}
-
-// HandleEmailSummary creates a summary of unread emails
-func (h *Handler) HandleEmailSummary() (string, error) {
-	// This is a placeholder - in a real implementation, you would:
-	// 1. Connect to the email server
-	// 2. Fetch unread emails
-	// 3. Format them for Claude
-	// 4. Send to Claude for summarization
-	
-	emailData := "You have 3 unread emails:\n" +
-		"1. From: boss@company.com, Subject: Project Update Meeting\n" +
-		"2. From: newsletter@tech.com, Subject: Weekly Tech Digest\n" +
-		"3. From: friend@gmail.com, Subject: Weekend Plans"
-	
-	prompt := "Here are my unread emails. Please provide a brief summary of each:\n\n" + emailData
-	
-	return h.claudeClient.Ask(prompt)
 }
 
 // HandleWebpageSummary creates a summary of a webpage

@@ -22,6 +22,9 @@ var (
 
 	promptStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#87FF5F")).
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("#87FF5F")).
+		Padding(0, 1).
 		Bold(true)
 
 	responseStyle = lipgloss.NewStyle().
@@ -33,6 +36,9 @@ var (
 
 	helpStyle = lipgloss.NewStyle().
 		Foreground(lipgloss.Color("#5F5F5F"))
+        
+    spinnerStyle = lipgloss.NewStyle().
+        Foreground(lipgloss.Color("205"))
 )
 
 type errMsg error
@@ -48,6 +54,7 @@ type Model struct {
 	err         error
 	loading     bool
 	windowWidth int
+    windowHeight int
 }
 
 // InitialModel creates and initializes the UI model
@@ -62,25 +69,78 @@ func InitialModel(cfg config.Config) Model {
 	
 	s := spinner.New()
 	s.Spinner = spinner.Dot
-	s.Style = lipgloss.NewStyle().Foreground(lipgloss.Color("205"))
+	s.Style = spinnerStyle
 	
 	return Model{
 		textInput: ti,
 		viewport:  vp,
 		spinner:   s,
 		handler:   handlers.NewHandler(cfg),
-		history:   []string{},
+		history:   []string{welcomeMessage()},
+        windowWidth: 80,
+        windowHeight: 24,
 	}
 }
 
 // welcomeMessage returns the initial welcome text
+// wrapText wraps the text to fit within width characters per line
+func wrapText(text string, width int) string {
+	if width <= 0 {
+		return text
+	}
+	
+	var result strings.Builder
+	lines := strings.Split(text, "\n")
+	
+	for i, line := range lines {
+		if len(line) <= width {
+			result.WriteString(line)
+		} else {
+			// Process the line by breaking it at word boundaries
+			words := strings.Fields(line)
+			lineLength := 0
+			
+			for j, word := range words {
+				if lineLength+len(word) > width && lineLength > 0 {
+					// Start a new line
+					result.WriteString("\n")
+					lineLength = 0
+				}
+				
+				if j > 0 && lineLength > 0 {
+					result.WriteString(" ")
+					lineLength++
+				}
+				
+				result.WriteString(word)
+				lineLength += len(word)
+			}
+		}
+		
+		// Add newline unless it's the last line
+		if i < len(lines)-1 {
+			result.WriteString("\n")
+		}
+	}
+	
+	return result.String()
+}
+
 func welcomeMessage() string {
-	return "Terminal Claude Assistant\n" +
-		"------------------------\n" +
-		"Type your requests or commands. Type 'exit' to quit.\n\n" +
-		"Example commands:\n" +
+	return `
+ ______   ______     ______     _____     ______   ______     ______     __    __    
+/\  == \ /\  == \   /\  __ \   /\  __-.  /\__  _\ /\  ___\   /\  == \   /\ "-./  \   
+\ \  _-/ \ \  __<   \ \ \/\ \  \ \ \/\ \ \/_/\ \/ \ \  __\   \ \  __<   \ \ \-./\ \  
+ \ \_\    \ \_\ \_\  \ \_____\  \ \____-    \ \_\  \ \_____\  \ \_\ \_\  \ \_\ \ \_\ 
+  \/_/     \/_/ /_/   \/_____/   \/____/     \/_/   \/_____/   \/_/ /_/   \/_/  \/_/ 
+                                                                                    
+` +
+		"type your requests or commands. type 'exit' to quit.\n\n" +
+		"example commands:\n" +
 		"- summarise my unread e-mails\n" +
 		"- what's on this webpage? bbc.co.uk\n" +
+		"- list slack channels\n" +
+		"- summarise slack channel #general\n" +
 		"- tell me about golang\n"
 }
 
@@ -95,11 +155,12 @@ type responseMsg struct {
 }
 
 // sendRequest sends the request to the handler
-func (m Model) sendRequest() tea.Cmd {
-	input := m.textInput.Value()
+func (m Model) sendRequest(input string) tea.Cmd {
+	// Make a local copy of the input to ensure it doesn't change
+	commandToProcess := input
 	
 	return func() tea.Msg {
-		response, err := m.handler.ProcessCommand(input)
+		response, err := m.handler.ProcessCommand(commandToProcess)
 		if err != nil {
 			return errMsg(err)
 		}
@@ -130,61 +191,102 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			
 			// Prepare for request
 			userInput := m.textInput.Value()
+			
 			m.history = append(m.history, "> "+userInput)
 			m.loading = true
 			m.textInput.Reset()
 			
+			// Create a clean spinner
+			s := spinner.New()
+			s.Spinner = spinner.Dot
+			s.Style = spinnerStyle
+			m.spinner = s
+			
 			// Update viewport with the new input
-			content := strings.Join(m.history, "\n\n")
+			content := strings.Join(m.history, "\n")
 			m.viewport.SetContent(content)
 			
 			// Scroll to bottom
 			m.viewport.GotoBottom()
 			
-			return m, tea.Batch(m.sendRequest(), m.spinner.Tick)
+			return m, tea.Batch(m.sendRequest(userInput), m.spinner.Tick)
 			
 		case tea.KeyCtrlL:
 			m.history = []string{welcomeMessage()}
-			m.viewport.SetContent(strings.Join(m.history, "\n\n"))
+			m.viewport.SetContent(strings.Join(m.history, "\n"))
 			return m, nil
 		}
 
 	case responseMsg:
 		m.loading = false
-		m.history = append(m.history, responseStyle.Render(msg.response))
-		m.viewport.SetContent(strings.Join(m.history, "\n\n"))
+		// Completely reinitialize the spinner
+		s := spinner.New()
+		s.Spinner = spinner.Dot
+		s.Style = spinnerStyle
+		m.spinner = s
+		
+		// Make sure the response is wrapped to fit the width
+		maxWidth := m.windowWidth - 4 // Account for margins
+		if maxWidth <= 0 {
+			maxWidth = 76 // Default width
+		}
+		
+		wrappedResponse := wrapText(msg.response, maxWidth)
+		m.history = append(m.history, responseStyle.Render(wrappedResponse))
+		m.viewport.SetContent(strings.Join(m.history, "\n"))
 		m.viewport.GotoBottom()
 		return m, nil
 
 	case errMsg:
 		m.loading = false
+		// Completely reinitialize the spinner
+		s := spinner.New()
+		s.Spinner = spinner.Dot
+		s.Style = spinnerStyle
+		m.spinner = s
+		
 		m.err = msg
-		m.history = append(m.history, errorStyle.Render(fmt.Sprintf("Error: %v", msg)))
-		m.viewport.SetContent(strings.Join(m.history, "\n\n"))
+		
+		// Make sure the error message is wrapped to fit the width
+		maxWidth := m.windowWidth - 4 // Account for margins
+		if maxWidth <= 0 {
+			maxWidth = 76 // Default width
+		}
+		
+		errText := fmt.Sprintf("Error: %v", msg)
+		wrappedError := wrapText(errText, maxWidth)
+		m.history = append(m.history, errorStyle.Render(wrappedError))
+		m.viewport.SetContent(strings.Join(m.history, "\n"))
 		m.viewport.GotoBottom()
 		return m, nil
 
 	case tea.WindowSizeMsg:
 		m.windowWidth = msg.Width
+        m.windowHeight = msg.Height
 		headerHeight := 1
 		footerHeight := 3
 		verticalMargins := headerHeight + footerHeight
 		
-		if !m.loading {
-			m.viewport.Width = msg.Width
-			m.viewport.Height = msg.Height - verticalMargins
-		}
+        // Adjust viewport dimensions to match terminal size
+		m.viewport.Width = msg.Width
+		m.viewport.Height = msg.Height - verticalMargins
 		
-		m.textInput.Width = msg.Width - 2
+		// Also adjust textinput width to match terminal width
+		m.textInput.Width = msg.Width - 4 // Account for borders
 		
+		// Update content
 		if m.viewport.Height >= 0 {
-			m.viewport.SetContent(strings.Join(m.history, "\n\n"))
+			m.viewport.SetContent(strings.Join(m.history, "\n"))
 			m.viewport.GotoBottom()
 		}
+        
+        return m, nil
 
 	case spinner.TickMsg:
 		if m.loading {
+			// Only tick once
 			m.spinner, spCmd = m.spinner.Update(msg)
+			// Return the viewport alone without spinner commands to prevent multiple renders
 			return m, spCmd
 		}
 	}
@@ -197,23 +299,43 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 // View renders the UI
 func (m Model) View() string {
-	// Footer with input field
-	input := promptStyle.Render("> ") + m.textInput.View()
+	var footerContent string
 	
-	// Spinner when loading
+	// Calculate available width
+	availWidth := m.windowWidth
+	if availWidth <= 0 {
+		availWidth = 80 // Default width
+	}
+	
+	// Ensure the text input respects the available width
+	m.textInput.Width = availWidth - 4 // Account for border and padding
+	
+	// Input field or spinner
 	if m.loading {
-		input = m.spinner.View() + " Processing..."
+		// Display a single spinner without duplication
+		footerContent = m.spinner.View() + " Processing..."
+	} else {
+		// Box-style prompt with width constraint
+		boxStyle := promptStyle.Copy().Width(availWidth - 2) // Apply width constraint to the box
+		footerContent = boxStyle.Render(m.textInput.View())
 	}
 	
 	// Help text
 	helpText := helpStyle.Render("Ctrl+C to quit, Ctrl+L to clear")
 	
-	// Put it all together
-	return fmt.Sprintf(
-		"%s\n%s\n\n%s\n%s",
-		titleStyle.Render("Terminal Claude Assistant"),
-		m.viewport.View(),
-		input,
-		helpText,
-	)
+	// Ensure the terminal width constraint is respected by all content
+    maxWidth := m.windowWidth
+    if maxWidth <= 0 {
+        maxWidth = 80 // Default width
+    }
+    
+    // Set maximum width for viewport
+    m.viewport.Width = maxWidth
+    
+	// When processing, don't show help text to avoid duplication
+	if m.loading {
+		return fmt.Sprintf("%s\n\n%s", m.viewport.View(), footerContent)
+	} else {
+		return fmt.Sprintf("%s\n\n%s\n%s", m.viewport.View(), footerContent, helpText)
+	}
 }

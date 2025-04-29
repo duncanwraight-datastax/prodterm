@@ -26,16 +26,47 @@ func NewClient(cfg config.Config) *Client {
 func (c *Client) Ask(prompt string) (string, error) {
 	url := "https://api.anthropic.com/v1/messages"
 	
-	messages := []models.ChatMessage{
+	// Force the correct model name
+	modelName := "claude-3-haiku-20240307"
+	
+	// Create a simpler message structure
+	requestBody := models.AnthropicRequest{
+		Model:     modelName, // Use the hardcoded model name for now
+		MaxTokens: 1024,
+		System:    "You are Claude, an AI assistant by Anthropic. You're helpful, harmless, and honest.",
+	}
+	
+	// Check if the prompt might be too long or has formatting issues
+	if len(prompt) > 100000 {
+		// Truncate if needed
+		prompt = prompt[:100000]
+	}
+	
+	// Ensure we have non-empty content
+	if prompt == "" {
+		prompt = "Hello"
+	}
+	
+	// Create proper content structure for the user message
+	requestBody.Messages = []models.Message{
 		{
-			Role:    "user",
-			Content: prompt,
+			Role: "user",
+			Content: []models.MessageContent{
+				{
+					Type: "text",
+					Text: prompt,
+				},
+			},
 		},
 	}
 	
-	requestBody := models.AnthropicRequest{
-		Model:    c.Config.Model,
-		Messages: messages,
+	// Verify content is not empty
+	if len(requestBody.Messages) == 0 || len(requestBody.Messages[0].Content) == 0 {
+		return "", fmt.Errorf("cannot create empty message content")
+	}
+	
+	if requestBody.Messages[0].Content[0].Text == "" {
+		return "", fmt.Errorf("message text cannot be empty")
 	}
 	
 	jsonData, err := json.Marshal(requestBody)
@@ -50,7 +81,9 @@ func (c *Client) Ask(prompt string) (string, error) {
 	
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("x-api-key", c.Config.AnthropicAPIKey)
-	req.Header.Set("anthropic-version", "2023-06-01")
+	req.Header.Set("anthropic-version", "2023-06-01") 
+	// Use a newer API version
+	req.Header.Set("anthropic-beta", "messages-2023-12-15")
 	
 	client := &http.Client{}
 	resp, err := client.Do(req)
@@ -61,7 +94,8 @@ func (c *Client) Ask(prompt string) (string, error) {
 	
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		return "", fmt.Errorf("error from Claude API (Status %d): %s", resp.StatusCode, string(bodyBytes))
+		errorMsg := string(bodyBytes)
+		return "", fmt.Errorf("error from Claude API (Status %d): %s", resp.StatusCode, errorMsg)
 	}
 	
 	var result models.AnthropicResponse

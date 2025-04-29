@@ -2,7 +2,6 @@ package handlers
 
 import (
 	"fmt"
-	"terminal-claude/api"
 	"terminal-claude/mcp"
 	"time"
 )
@@ -41,15 +40,15 @@ func (h *Handler) HandleEmailSummary() (string, error) {
 		
 		// Parse the date
 		date, err := parseEmailDate(dateStr)
-		var timeAgo string
+		var timeStr string
 		if err == nil {
-			timeAgo = timeAgo(date)
+			timeStr = formatTimeAgo(date)
 		} else {
-			timeAgo = dateStr
+			timeStr = dateStr
 		}
 		
 		emailData += fmt.Sprintf("%d. From: %s, Subject: %s, Received: %s\n", 
-			i+1, from, subject, timeAgo)
+			i+1, from, subject, timeStr)
 		
 		if snippet, ok := email["snippet"].(string); ok && snippet != "" {
 			emailData += fmt.Sprintf("   Snippet: %s\n", snippet)
@@ -81,8 +80,8 @@ func parseEmailDate(dateStr string) (time.Time, error) {
 	return time.Time{}, fmt.Errorf("could not parse date: %s", dateStr)
 }
 
-// timeAgo returns a human-readable string representing how long ago a time was
-func timeAgo(t time.Time) string {
+// formatTimeAgo returns a human-readable string representing how long ago a time was
+func formatTimeAgo(t time.Time) string {
 	now := time.Now()
 	diff := now.Sub(t)
 	

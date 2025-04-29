@@ -9,13 +9,28 @@ type AnthropicResponse struct {
 	ID string `json:"id"`
 }
 
-// AnthropicRequest to Anthropic API
-type AnthropicRequest struct {
-	Model    string        `json:"model"`
-	Messages []ChatMessage `json:"messages"`
+// MessageContent represents a content item in a message
+type MessageContent struct {
+	Type string `json:"type"`
+	Text string `json:"text"`
 }
 
-// ChatMessage represents a message in the conversation
+// Message represents a message in the conversation with structured content
+type Message struct {
+	Role    string          `json:"role"`
+	Content []MessageContent `json:"content"`
+}
+
+// AnthropicRequest to Anthropic API
+type AnthropicRequest struct {
+	Model     string    `json:"model"`
+	Messages  []Message `json:"messages"`
+	MaxTokens int       `json:"max_tokens"`
+	System    string    `json:"system,omitempty"`
+}
+
+// ChatMessage represents an older format message in the conversation
+// Kept for backward compatibility
 type ChatMessage struct {
 	Role    string `json:"role"`
 	Content string `json:"content"`

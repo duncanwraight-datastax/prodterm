@@ -20,8 +20,11 @@ func Load() (Config, error) {
 	
 	model := os.Getenv("CLAUDE_MODEL")
 	if model == "" {
-		model = "claude-3-sonnet-20240229" // Default model
+		model = "claude-3-sonnet-20240229" // Standard model name without suffix
 	}
+	
+	// Print the model being used for debugging
+	println("Using Claude model:", model)
 	
 	return Config{
 		AnthropicAPIKey: apiKey,

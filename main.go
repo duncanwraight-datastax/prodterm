@@ -8,6 +8,7 @@ import (
 	"terminal-claude/config"
 	"terminal-claude/mcp"
 	"terminal-claude/providers/gmail"
+	"terminal-claude/providers/slack"
 	"terminal-claude/ui"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -42,5 +43,20 @@ func initializeProviders() {
 		log.Println("Registered Gmail provider")
 	}
 	
-	// Add other providers here as needed
+	// Note: Slack provider is auto-registered via its init() function
+	// Let's check if it was registered successfully
+	if _, err := mcp.Get("Slack"); err != nil {
+		log.Printf("Note: Slack provider not available: %v", err)
+		
+		// Try to register it manually as fallback
+		slackProvider, err := slack.New()
+		if err != nil {
+			log.Printf("Warning: Failed to initialize Slack provider: %v", err)
+		} else {
+			mcp.Register(slackProvider)
+			log.Println("Registered Slack provider")
+		}
+	} else {
+		log.Println("Slack provider is available")
+	}
 }

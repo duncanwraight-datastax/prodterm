@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"terminal-claude/mcp"
-	"time"
 
 	"golang.org/x/oauth2"
 	"golang.org/x/oauth2/google"
@@ -200,11 +198,16 @@ func (p *Provider) getEmail(id string) (map[string]interface{}, error) {
 
 // summarizeUnreadEmails gets a summary of unread emails
 func (p *Provider) summarizeUnreadEmails(count int) (map[string]interface{}, error) {
+	fmt.Println("DEBUG - Gmail provider: Fetching unread emails")
+	
 	user := "me"
 	r, err := p.service.Users.Messages.List(user).Q("is:unread").MaxResults(int64(count)).Do()
 	if err != nil {
+		fmt.Printf("DEBUG - Gmail error: %v\n", err)
 		return nil, fmt.Errorf("unable to retrieve messages: %v", err)
 	}
+	
+	fmt.Printf("DEBUG - Found %d unread messages\n", len(r.Messages))
 
 	var emails []map[string]interface{}
 	for _, m := range r.Messages {
